@@ -60,6 +60,7 @@ class GomokuSimulationPlayer(object):
             assert(self.playout_policy=='rule_based')
             assert(isinstance(board, SimpleGoBoard))
             ret=board.get_pattern_moves()
+            ret = board.eval()
             if ret is None:
                 return "Random", self._random_moves(board, color_to_play)
             movetype_id, moves=ret

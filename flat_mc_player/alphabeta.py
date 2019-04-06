@@ -16,13 +16,13 @@ def game_end(board):
     return None
 
 def alphabeta(board,alpha,beta):
-    #print(GoBoardUtil.get_twoD_board(board),alpha,beta)
+    print(GoBoardUtil.get_twoD_board(board),alpha,beta)
     result=game_end(board)
     if (result!=None):
         return result
     solvePoint=board.list_solve_point()
     if solvePoint:
-        #print(solvePoint[0])
+        print(solvePoint[0])
         board.play_move_gomoku(solvePoint[0],board.current_player)
         result=-alphabeta(board,-beta,-alpha)
         if(result>alpha):
