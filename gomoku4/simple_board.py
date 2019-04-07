@@ -497,17 +497,54 @@ class SimpleGoBoard(object):
         moves = self.get_empty_points()
         for move in moves:
             # count adjacent
-            totalscore = 0
             pos = 10
-            score = 0
+            adjacentScore = 1
             for i in range(3):
                 for j in range(3)
-                    if point-pos > 0 and self.board[point-pos] == self.current_player():
-                        score += 1
+                    if self.board[point-pos] == self.current_player():
+                        adjacentScore += 1
                     pos += -1
                 pos - 7
-            totalscore = score
-            # count in line            
+            # count in line    
+            # horizontal
+            horScore = 1
+            pos = -4
+            if move + pos < 0:
+                pos = pos - (move + pos -1)
+            for i in range(move+pos, move + 4):
+                if self.board[move + pos] == self.current_player:
+                    horScore += 1
+                elif self.board[move + pos] == self.opponent:
+                    horScore += -1
+                if self.board[move + pos] == BORDER and pos < 0:
+                    horScore = 1
+                if self.board[move + pos] == BORDER and pos > 0:
+                    break
+                pos += 1
+            if horScore < 1:
+                horScore = 1
+            # vertical
+            vertScore = 1
+            pos = -36
+            if move + pos < 0:
+                pos = pos - move + pos - 9
+            for i in range(move+pos, move + 36, 9):
+                if self.board[move + pos] == self.current_player:
+                    vertScore += 1
+                elif self.board[move + pos] == self.opponent:
+                    vertScore += -1
+                if self.board[move + pos] == BORDER and pos < 0:
+                    vertScore = 1
+                if self.board[move + pos] == BORDER and pos > 0:
+                    break
+                pos += 9
+            if vertScore < 1:
+                vertScore = 1
+            # diag1
+            
+            
+
+
 
             
     def list_solve_point(self):
