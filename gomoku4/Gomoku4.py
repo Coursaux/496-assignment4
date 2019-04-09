@@ -112,8 +112,17 @@ class GomokuSimulationPlayer(object):
                     best_move=move
                     self.best_move=best_move
                 undo(board, move)
-        assert(best_move is not None)
-        return best_move
+        # move_dict = board.evaluate()
+        # best_score = -1.1
+        # best_move = None
+        # for move in move_dict:
+        #     score = move_dict.get(move)
+        #     if score>=best_score:
+        #         best_score = score
+        #         best_move = move
+
+        # assert(best_move is not None)
+        # return best_move
 
 def run():
     """
