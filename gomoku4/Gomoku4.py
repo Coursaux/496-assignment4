@@ -6,7 +6,7 @@ from gtp_connection import GtpConnection
 from board_util import GoBoardUtil
 from simple_board import SimpleGoBoard
 import numpy as np
-
+import signal,os,time
 class Gomoku():
       def __init__(self):
             """
@@ -17,6 +17,7 @@ class Gomoku():
             """
             self.name = "GomokuAssignment2"
             self.version = 1.0
+            self.alarm_flag = False
 
       def get_move(self, board, color):
             return GoBoardUtil.generate_random_move_gomoku(board)
@@ -24,36 +25,48 @@ class Gomoku():
       def simulate_random(self,board,color):
             #get empty points from the board and simulate at random 10 times
             legal_moves = board.get_around_points()
+
             #win 2 score, draw 1 score, lose 0 score
             max_winrate = 0.0
             best_move = 0
-            for move in legal_moves:
-                  score = 0.0
-                  for i in range(1):
-                        temp_board = board.copy()
-                        #play the first step
-                        temp_board.play_move_gomoku(move,color)
-                        #pass the board and the origianl color 
-                        result = self.simulate_once(temp_board,color)
-                        #add up the total score
-                        
-                        score+=result
-                  
-                  #find the winrate
-                  score /= 10
-                  if score>=max_winrate:
-                        #evaluate if the winrate is higher than the current best move
-                        max_winrate = score
-                        best_move = move
+
+            #set alarm
+            signal.signal(signal.SIGALRM,self.handler)
+            signal.alarm(57)
+            for l in range(10):
+                  for move in legal_moves:     
+                        score = 0.0
+                        for i in range(10):
+                              if self.alarm_flag:
+                                    return best_move
+                              temp_board = board.copy()
+                              #play the first step
+                              temp_board.play_move_gomoku(move,color)
+                              #pass the board and the origianl color 
+                              result = self.simulate_once(temp_board,color)
+                              #add up the total score
+                              
+                              score+=result
+                              
+
+
+                        #find the winrate
+                        score /= 10
+                        if score>=max_winrate:
+                              #evaluate if the winrate is higher than the current best move
+                              max_winrate = score
+                              best_move = move
             return best_move
             
       def simulate_rule_based(self,board,color):
             #####Fill in here#####
+            if len(GoBoardUtil.generate_legal_moves(board,color)) == 0:
+                  return 'PASS'
             temp_board = board.copy()
             rule,move = GoBoardUtil.generate_rule_move_gomoku(temp_board,color)
             if rule != "Random":
-                  np.random.shuffle(move)
-                  return rule,move[0]
+                  #np.random.shuffle(move)
+                  return rule,np.random.choice(move)
                   # return move
             else:
                   move = self.simulate_random(board,color)
@@ -74,27 +87,31 @@ class Gomoku():
             if move == None:
                   return 1
             
-            #check the rules first
-            temp_board = board.copy()
-            rule,move = GoBoardUtil.generate_rule_move_gomoku(temp_board,board.current_player)
-            if rule != "Random":
-                  np.random.shuffle(move)
-                  board.play_move_gomoku(move[0],board.current_player)
-                  return self.simulate_once(board,player_original_color)  
+            # #check the rules first
+            # temp_board = board.copy()
+            # rule,move = GoBoardUtil.generate_rule_move_gomoku(temp_board,board.current_player)
+            # if rule != "Random":
+            #       #np.random.shuffle(move)
+            #       board.play_move_gomoku(np.random.choice(move),board.current_player)
+            #       return self.simulate_once(board,player_original_color)  
 
             #if unable to generate a move based on the rule 
             #get random move from around all played points
             move = board.get_around_points()
-            np.random.shuffle(move)
-            board.play_move_gomoku(move[0],board.current_player)
+            #np.random.shuffle(move)
+            board.play_move_gomoku(np.random.choice(move),board.current_player)
             return self.simulate_once(board,player_original_color)
-
+      
+      def handler(self,signum,frame):
+            self.alarm_flag = True
+            return
     
 def run():
       """
       start the gtp connection and wait for commands.
       """
       #random.seed() no need to seed because we use np.random
+      np.random.seed()
       board = SimpleGoBoard(7)
       con = GtpConnection(Gomoku(), board)
       con.start_connection()

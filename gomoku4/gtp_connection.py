@@ -263,6 +263,11 @@ class GtpConnection():
             else:
                 self.respond("resign")
             return
+        
+        if len(self.board.get_empty_points()) == 49:
+            self.respond("D4")
+            return
+
         move = self.go_engine.simulate_rule_based(self.board,color)
         if move == 'PASS':
             self.respond("pass")
