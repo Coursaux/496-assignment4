@@ -7,7 +7,7 @@ win1=0
 win2=0
 numTimeout=0
 draw=0
-timeout=1
+timeout=60
 
 def getMove(p,color):
     p.sendline('genmove '+color)

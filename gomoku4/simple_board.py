@@ -13,7 +13,6 @@ import numpy as np
 from board_util import GoBoardUtil, BLACK, WHITE, EMPTY, BORDER, \
                        PASS, is_black_white, coord_to_point, where1d, \
                        MAXSIZE, NULLPOINT
-import alphabeta
 
 class SimpleGoBoard(object):
 
@@ -420,306 +419,282 @@ class SimpleGoBoard(object):
 
         return False, None
 
-    def solve(self):
-        result, move, drawMove = alphabeta.solve(self)
-        if move=="First":
-            if result==0:
-                return 'draw',drawMove
+    def _point_direction_check_openfour(self,point,shift):
+        color = self.board[point]
+        count = 1
+        d = shift
+        p = point
+        end_one = False
+        end_two = False
+        while True:
+            p = p+d
+            if self.board[p] == color:
+                count = count+1
+            elif self.board[p] == EMPTY:
+                end_one = True
+                break
             else:
-                winner='w' if self.current_player!=WHITE else 'b'
-                return winner,'NoMove'
-        elif move=="NoMove":
-            if result:
-                return 'draw', drawMove
+                break
+        d = -d
+        p = point
+        while True:
+            p = p+d
+            if self.board[p] == color:
+                count = count+1
+            elif self.board[p] == EMPTY:
+                end_two = True
+                break
             else:
-                winner='w' if self.current_player!=WHITE else 'b'
-                return winner, move
-        else:
-            winner='w' if self.current_player==WHITE else 'b'
-            return winner, move
-
-    def check_pattern(self,point,have,direction_x,direction_y,moveSet,patternList,color,flag):
-        for i in range(0,4):
-            if have in patternList[i]:
-                for dis in patternList[i][have]:
-                    moveSet[i].add(point-direction_x*(dis+1)-direction_y*self.NS*(dis+1))
-                #flag[0]=True
                 break
-        if (not (0<= point<len(self.board))) or len(have)==9:
-            return
-#if self.get_color(point)==BORDER or len(have)==7:
-#            return
-        piece=self.get_color(point)
-        if piece==EMPTY:
-            piece='.'
-        elif piece==color:
-            piece='x'
-        elif piece == BORDER:
-            piece='B'
-        else:
-            piece='o'
-        have+=piece
-        #print(GoBoardUtil.format_point(self._point_to_coord(point)),have,self.board[point])
-        self.check_pattern(point+direction_x+direction_y*self.NS,have,direction_x,direction_y,moveSet,patternList,color,flag)
+        return end_one and end_two and (count>=4)
 
-    def get_pattern_moves(self):
+    def point_check_openfour(self,point):
         """
-        1. direct winning point xxxx. x.xxx xx.xx
-        2. urgent blocking point xoooo.
-        3. wining in 2 step point
-        """
-        moveSet=[set(),set(),set(),set()]
-        color=self.current_player
-
-        patternList=[{'xxxx.':{0},'xxx.x':{1},'xx.xx':{2},'x.xxx':{3},'.xxxx':{4}}, #win
-                     {'oooo.':{0},'ooo.o':{1},'oo.oo':{2},'o.ooo':{3},'.oooo':{4}}, #block win
-                     {'.xxx..':{1},'..xxx.':{4},'.xx.x.':{2},'.x.xx.':{3}}, #make-four
-                     {'.ooo..':{1,5},'..ooo.':{0,4},'.oo.o.':{0,2,5},'.o.oo.':{0,3,5}, 'B.ooo..':{0}, '..ooo.B':{6},
-                     'x.ooo..':{0}, '..ooo.x':{6} #block-open-four
-                     }]
-
-        direction_x=[1,0,1,-1]
-        direction_y=[0,1,1,1]
-        flag=[False]
-
-        for point in range(0, len(self.board)):
-            if flag[0]:
-                break
-            for direction in range(0,4):
-                    self.check_pattern(point,'',direction_x[direction],direction_y[direction],moveSet,patternList,color,flag)
+            Check if the point causes the game end for the game of Gomoko.
+            """
+        # check horizontal
+        if self._point_direction_check_openfour(point, 1):
+            return True
         
-        i=0
-        while i<4 and not bool(moveSet[i]): i+=1
-        if i==4:
-            return None
-        else:
-            return i, list(moveSet[i])
-            
-    def list_solve_point(self):
-        """
-        1. direct winning point xxxx. x.xxx xx.xx
-        2. urgent blocking point xoooo.
-        3. wining in 2 step point
-        """
-        moveSet=[set(),set(),set(),set()]
-        color=self.current_player
-
-        patternList=[{'xxxx.':{0},'xxx.x':{1},'xx.xx':{2},'x.xxx':{3},'.xxxx':{4}},{'oooo.':{0},'ooo.o':{1},'oo.oo':{2},'o.ooo':{3},'.oooo':{4}},{'.xxx..':{1},'..xxx.':{4},'.xx.x.':{2},'.x.xx.':{3}},{'.ooo..':{1,5},'..ooo.':{0,4},'.oo.o.':{2},'.o.oo.':{3}}]
-
-        direction_x=[1,0,1,-1]
-        direction_y=[0,1,1,1]
-        flag=[False]
-
-        for point in where1d(self.board!=BORDER):
-            if flag[0]:
-                break
-            for direction in range(0,4):
-                    self.check_pattern(point,'',direction_x[direction],direction_y[direction],moveSet,patternList,color,flag)
+        # check vertical
+        if self._point_direction_check_openfour(point, self.NS):
+            return True
         
-        i=0
-        while i<4 and not bool(moveSet[i]):
-            i+=1
-        if i==4:
-            return None
-        else:
-            return list(moveSet[i])
+        # check y=x
+        if self._point_direction_check_openfour(point, self.NS + 1):
+            return True
+        
+        # check y=-x
+        if self._point_direction_check_openfour(point, self.NS - 1):
+            return True
+        
+        return False
 
-    def evaluation(self):
-        scores = {}
-        moves = self.get_empty_points()
-        for move in moves:
-            # count adjacent
-            pos = 9
-            adjacentScore = 1
-            for i in range(3):
-                for j in range(3):
-                    if move - pos > 72:
-                        break
-                    if self.board[move-pos] == self.current_player:
-                        adjacentScore += 1
-                    pos += -1
-                pos -= 6
-            # count in line    
-            # horizontal
-            horScore = 1
-            pos = -4
-            if move + pos < 0:
-                pos = pos - (move + pos -1)
-            for i in range(move+pos, move + 4):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    horScore += 1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    horScore += -1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    horScore = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 1
-            if horScore < 1:
-                horScore = 1
-            # vertical
-            vertScore = 1
-            pos = -32
-            if move + pos < 0:
-                pos = pos - (move + pos - 8)
-            for i in range(move+pos, move + 32, 8):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    vertScore += 1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    vertScore += -1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    vertScore = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 8
-            if vertScore < 1:
-                vertScore = 1
-            # diag1
-            diag1Score = 1
-            pos = -36
-            if move + pos < 0:
-                pos = pos - (move + pos - 9)
-            for i in range(move+pos, move + 36, 9):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    diag1Score += 1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    diag1Score += -1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    diag1Score = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 9
-            if diag1Score < 1:
-                diag1Score = 1
-            # diag2
-            diag2Score = 1
-            pos = -28
-            if move + pos < 0:
-                pos = pos - (move + pos - 7)
-            for i in range(move+pos, move + 28, 7):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    diag2Score += 1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    diag2Score += -1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    diag2Score = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 7
-            if diag2Score < 1:
-                diag2Score = 1
-            lineScore = horScore + vertScore + diag1Score + diag2Score
-            lineScore /= 3
-            # degree from middle
-            degreeScore = 0.95
-            if (self.board[move] > 26 and self.board[move] < 30) or (self.board[move] > 34 and self.board[move] < 38) or (self.board[move] > 42 and self.board[move] < 46):
-                degreeScore = 1
-            selfScore = adjacentScore * lineScore * degreeScore * 1.1
 
-            # opposite coloured stones
-            # count adjacent
-            pos = 9
-            adjacentScore = 1
-            for i in range(3):
-                for j in range(3):
-                    if move - pos > 72:
-                        break
-                    if self.board[move-pos] == GoBoardUtil.opponent(self.current_player):
-                        adjacentScore += 1
-                    pos += -1
-                pos -= 6
-            # count in line    
-            # horizontal
-            horScore = 1
-            pos = -4
-            if move + pos < 0:
-                pos = pos - (move + pos -1)
-            for i in range(move+pos, move + 4):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    horScore += -1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    horScore += +1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    horScore = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 1
-            if horScore < 1:
-                horScore = 1
-            # vertical
-            vertScore = 1
-            pos = -32
-            if move + pos < 0:
-                pos = pos - (move + pos - 8)
-            for i in range(move+pos, move + 32, 8):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    vertScore += -1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    vertScore += +1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    vertScore = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 8
-            if vertScore < 1:
-                vertScore = 1
-            # diag1
-            diag1Score = 1
-            pos = -36
-            if move + pos < 0:
-                pos = pos - (move + pos - 9)
-            for i in range(move+pos, move + 36, 9):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    diag1Score += -1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    diag1Score += 1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    diag1Score = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 9
-            if diag1Score < 1:
-                diag1Score = 1
-            # diag2
-            diag2Score = 1
-            pos = -28
-            if move + pos < 0:
-                pos = pos - (move + pos - 7)
-            for i in range(move+pos, move + 28, 7):
-                if move + pos > 72:
-                    break
-                if self.board[move + pos] == self.current_player:
-                    diag2Score += -1
-                elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
-                    diag2Score += +1
-                if self.board[move + pos] == BORDER and pos < 0:
-                    diag2Score = 1
-                if self.board[move + pos] == BORDER and pos > 0:
-                    break
-                pos += 7
-            if diag2Score < 1:
-                diag2Score = 1
-            lineScore = horScore + vertScore + diag1Score + diag2Score
-            lineScore /= 3
-            # degree from middle
-            degreeScore = 0.95
-            if (self.board[move] > 26 and self.board[move] < 30) or (self.board[move] > 34 and self.board[move] < 38) or (self.board[move] > 42 and self.board[move] < 46):
-                degreeScore = 1
-            oppositeScore = adjacentScore * lineScore * degreeScore 
-            score = selfScore + oppositeScore
-            scores[move] = score
-            return scores
+    def undo(self, point):
+        self.board[point] = EMPTY
+    
+    def get_around_points(self):
+        # played_white = where1d(self.board == WHITE)
+        # played_black = where1d(self.board == BLACK)
+        # played = np.concatenate((played_white,played_black),axis = None)
+        
+        played_w = np.where(self.board == WHITE)
+        played_b = np.where(self.board == BLACK)
+        played = np.concatenate((played_w,played_b),axis = None)
+        
+        around = []
+        for point in played:
+            n = self._neighbors(point)
+            for p in n:
+                if (self.board[p] == EMPTY): 
+                    around.append(p)
+            n = self._diag_neighbors(point)
+            for p in n:
+                if (self.board[p] == EMPTY): 
+                    around.append(p)
+        
+        return np.unique(around)
+
+        # return where1d(self.board == EMPTY)
+
+
+    # def evaluation(self):
+    #     scores = {}
+    #     moves = self.get_empty_points()
+    #     for move in moves:
+    #         # count adjacent
+    #         pos = 9
+    #         adjacentScore = 1
+    #         for i in range(3):
+    #             for j in range(3):
+    #                 if move - pos > 72:
+    #                     break
+    #                 if self.board[move-pos] == self.current_player:
+    #                     adjacentScore += 1
+    #                 pos += -1
+    #             pos -= 6
+    #         # count in line    
+    #         # horizontal
+    #         horScore = 1
+    #         pos = -4
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos -1)
+    #         for i in range(move+pos, move + 4):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 horScore += 1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 horScore += -1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 horScore = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 1
+    #         if horScore < 1:
+    #             horScore = 1
+    #         # vertical
+    #         vertScore = 1
+    #         pos = -32
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos - 8)
+    #         for i in range(move+pos, move + 32, 8):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 vertScore += 1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 vertScore += -1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 vertScore = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 8
+    #         if vertScore < 1:
+    #             vertScore = 1
+    #         # diag1
+    #         diag1Score = 1
+    #         pos = -36
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos - 9)
+    #         for i in range(move+pos, move + 36, 9):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 diag1Score += 1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 diag1Score += -1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 diag1Score = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 9
+    #         if diag1Score < 1:
+    #             diag1Score = 1
+    #         # diag2
+    #         diag2Score = 1
+    #         pos = -28
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos - 7)
+    #         for i in range(move+pos, move + 28, 7):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 diag2Score += 1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 diag2Score += -1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 diag2Score = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 7
+    #         if diag2Score < 1:
+    #             diag2Score = 1
+    #         lineScore = horScore + vertScore + diag1Score + diag2Score
+    #         lineScore /= 3
+    #         # degree from middle
+    #         degreeScore = 0.95
+    #         if (self.board[move] > 26 and self.board[move] < 30) or (self.board[move] > 34 and self.board[move] < 38) or (self.board[move] > 42 and self.board[move] < 46):
+    #             degreeScore = 1
+    #         selfScore = adjacentScore * lineScore * degreeScore * 1.1
+
+    #         # opposite coloured stones
+    #         # count adjacent
+    #         pos = 9
+    #         adjacentScore = 1
+    #         for i in range(3):
+    #             for j in range(3):
+    #                 if move - pos > 72:
+    #                     break
+    #                 if self.board[move-pos] == GoBoardUtil.opponent(self.current_player):
+    #                     adjacentScore += 1
+    #                 pos += -1
+    #             pos -= 6
+    #         # count in line    
+    #         # horizontal
+    #         horScore = 1
+    #         pos = -4
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos -1)
+    #         for i in range(move+pos, move + 4):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 horScore += -1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 horScore += +1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 horScore = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 1
+    #         if horScore < 1:
+    #             horScore = 1
+    #         # vertical
+    #         vertScore = 1
+    #         pos = -32
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos - 8)
+    #         for i in range(move+pos, move + 32, 8):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 vertScore += -1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 vertScore += +1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 vertScore = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 8
+    #         if vertScore < 1:
+    #             vertScore = 1
+    #         # diag1
+    #         diag1Score = 1
+    #         pos = -36
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos - 9)
+    #         for i in range(move+pos, move + 36, 9):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 diag1Score += -1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 diag1Score += 1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 diag1Score = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 9
+    #         if diag1Score < 1:
+    #             diag1Score = 1
+    #         # diag2
+    #         diag2Score = 1
+    #         pos = -28
+    #         if move + pos < 0:
+    #             pos = pos - (move + pos - 7)
+    #         for i in range(move+pos, move + 28, 7):
+    #             if move + pos > 72:
+    #                 break
+    #             if self.board[move + pos] == self.current_player:
+    #                 diag2Score += -1
+    #             elif self.board[move + pos] == GoBoardUtil.opponent(self.current_player):
+    #                 diag2Score += +1
+    #             if self.board[move + pos] == BORDER and pos < 0:
+    #                 diag2Score = 1
+    #             if self.board[move + pos] == BORDER and pos > 0:
+    #                 break
+    #             pos += 7
+    #         if diag2Score < 1:
+    #             diag2Score = 1
+    #         lineScore = horScore + vertScore + diag1Score + diag2Score
+    #         lineScore /= 3
+    #         # degree from middle
+    #         degreeScore = 0.95
+    #         if (self.board[move] > 26 and self.board[move] < 30) or (self.board[move] > 34 and self.board[move] < 38) or (self.board[move] > 42 and self.board[move] < 46):
+    #             degreeScore = 1
+    #         oppositeScore = adjacentScore * lineScore * degreeScore 
+    #         score = selfScore + oppositeScore
+    #         scores[move] = score
+    #         return scores
